@@ -12,7 +12,7 @@ import { loadRepoContainer, loadLocalContainer, saveLocalContainer, downloadJson
 /**
  * @param {HTMLDialogElement} dialog
  * @param {HTMLElement} root
- * @param {{ getState: () => object, apply: (raw: object, baseCaseIndex: number) => void }} api
+ * @param {{ getState: () => object, apply: (raw: object, baseCaseIndex: number) => void, notify?: (text: string) => void }} api
  */
 export function createPresetsView(dialog, root, api) {
   let repo = { container: { entries: [] }, warnings: [] };
@@ -24,7 +24,6 @@ export function createPresetsView(dialog, root, api) {
   let progress = null; // { done, total }
   let abort = null;
   const msg = { open: '', create: '', global: '', warnings: [], exportText: '', exportInfo: '' };
-  let applyNote = '';
   let openPasswordKept = ''; // 入力途中の値を再描画で失わないため（解錠成功で消す）
   let repoLoading = false;
   let repoPromise = null; // 同梱 JSON の取得は 1 回だけ。成功するまで解錠は待たせる
@@ -36,7 +35,6 @@ export function createPresetsView(dialog, root, api) {
     unlocked = [];
     openPasswordKept = '';
     msg.open = '';
-    applyNote = '';
     render();
   }
 
@@ -76,6 +74,13 @@ export function createPresetsView(dialog, root, api) {
     if (unlocked.some((u) => u.dirty) && !window.confirm('保存していない変更があります。破棄して閉じますか？')) return;
     lock();
     if (dialog.open) dialog.close();
+  }
+
+  /** 操作が完了したらダイアログを閉じ、メイン画面に結果を知らせる */
+  function finish(text) {
+    lock();
+    if (dialog.open) dialog.close();
+    if (api.notify) api.notify(text);
   }
 
   function setBusy(v) { busy = v; render(); }
@@ -118,36 +123,38 @@ export function createPresetsView(dialog, root, api) {
   // ---- 保存（この端末） ----
   async function saveEntry(u, newPassword = null) {
     if (u.source === 'repo' && local.container.entries.some((e) => e.id === u.id)
-      && !window.confirm('この端末には、同じ設定の保存済みの版（別のパスワードや新しい内容の可能性があります）があります。今開いている同梱の版で上書きしますか？')) return;
+      && !window.confirm('この端末には、同じ設定の保存済みの版（別のパスワードや新しい内容の可能性があります）があります。今開いている同梱の版で上書きしますか？')) return false;
     setBusy(true);
     try {
       const password = newPassword ?? u.password;
       if (u.payload.sets.length === 0) {
-        if (!window.confirm('設定セットが 0 件です。このエントリを削除しますか？')) return;
+        if (!window.confirm('設定セットが 0 件です。このエントリを削除しますか？')) return false;
         if (u.source === 'repo' && !local.container.entries.some((e) => e.id === u.id)) {
           msg.global = '同梱のエントリはブラウザからは削除できません。リポジトリ側で削除してください。';
-          return;
+          return false;
         }
         local = { ...local, container: removeEntry(local.container, u.id) };
         const r = saveLocalContainer(local.container);
-        if (!r.ok) { msg.global = r.message; return; }
+        if (!r.ok) { msg.global = r.message; return false; }
         unlocked = unlocked.filter((x) => x.id !== u.id);
         msg.global = '削除しました。';
-        return;
+        return true;
       }
       const payload = { ...u.payload, updatedAt: new Date().toISOString() };
       const entry = await reencrypt(u.id, payload, password);
       const next = upsertEntry(local.container, entry);
       const r = saveLocalContainer(next);
-      if (!r.ok) { msg.global = r.message; return; }
+      if (!r.ok) { msg.global = r.message; return false; }
       local = { ...local, container: next };
       u.payload = payload;
       u.password = password;
       u.dirty = false;
       u.source = 'local';
       msg.global = newPassword ? 'パスワードを変更して、この端末に保存しました。' : 'この端末に保存しました。';
+      return true;
     } catch (e) {
       msg.global = messageForCode(e && e.code);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -162,6 +169,7 @@ export function createPresetsView(dialog, root, api) {
     if (!name.trim()) { msg.create = '設定セットの名前を入力してください。'; render(); return; }
     if (!pw1) { msg.create = 'パスワードを入力してください。'; render(); return; }
     if (pw1 !== pw2) { msg.create = '確認用パスワードが一致しません。'; render(); return; }
+    let savedName = '';
     setBusy(true);
     try {
       const set = setFromRawState({ raw: st.raw, baseCaseIndex: st.baseCaseIndex }, { name: name.trim(), note: note.trim() });
@@ -179,11 +187,13 @@ export function createPresetsView(dialog, root, api) {
       createDraft.name = ''; createDraft.note = '';
       tab = 'open';
       msg.global = r.ok ? 'この端末に保存しました。' : msg.create;
+      if (r.ok) savedName = name.trim();
     } catch (e) {
       msg.create = messageForCode(e && e.code);
     } finally {
       setBusy(false);
     }
+    if (savedName) finish(`「${savedName}」を新しい設定として保存しました。`);
   }
 
   function applySet(set) {
@@ -192,8 +202,7 @@ export function createPresetsView(dialog, root, api) {
     const base = raw.baseCaseIndex;
     delete raw.baseCaseIndex;
     api.apply(raw, base);
-    applyNote = `「${norm.name}」を入力欄に反映しました（ケース ${norm.cases.length} 件）。${warnings.length ? `読み込み時の補正が ${warnings.length} 件ありました。` : ''}`;
-    render();
+    finish(`「${norm.name}」を入力欄に反映しました（ケース ${norm.cases.length} 件）。${warnings.length ? `読み込み時の補正が ${warnings.length} 件ありました。` : ''}`);
   }
 
   function inputHasError() {
@@ -236,18 +245,33 @@ export function createPresetsView(dialog, root, api) {
   }
   const val = (id) => (document.getElementById(id) ? document.getElementById(id).value : '');
 
-  function renderOpenTab() {
-    const nodes = [];
-    nodes.push(el('p', { class: 'hint', text: 'パスワードを入力すると、そのパスワードで復号できる設定が読み込まれます（同梱分と、この端末に保存した分）。パスワードの正否は復号できるかどうかだけで判定します。' }));
+  function renderPasswordForm(label) {
     const pwId = 'pw-open';
     const form = el('form', { class: 'pw-form', autocomplete: 'off' }, [
       pwInput(pwId, 'パスワード', openPasswordKept, 'off'),
-      el('button', { type: 'submit', class: 'btn btn-primary', text: repoLoading ? '読み込み中…' : '開く', disabled: busy || repoLoading }),
+      el('button', { type: 'submit', class: 'btn btn-primary', text: repoLoading ? '読み込み中…' : label, disabled: busy || repoLoading }),
     ]);
     form.querySelector('input').addEventListener('input', (e) => { openPasswordKept = e.target.value; });
     form.addEventListener('submit', (e) => { e.preventDefault(); openPasswordKept = val(pwId); doUnlock(val(pwId)); });
-    if (repoLoading) nodes.push(el('p', { class: 'hint', role: 'status', text: '同梱の設定ファイルを読み込み中です…（読み込み後に「開く」を押すと、同梱分も試します）' }));
-    nodes.push(form);
+    return form;
+  }
+
+  function renderOpenTab() {
+    const nodes = [];
+    const isUnlocked = unlocked.length > 0;
+    if (!isUnlocked) {
+      nodes.push(el('p', { class: 'step-lead', text: 'パスワードを入力して、保存済みの設定を開きます。' }));
+      nodes.push(el('p', { class: 'hint', text: 'そのパスワードで復号できる設定（同梱分と、この端末に保存した分）が一覧に表示されます。' }));
+      if (repoLoading) nodes.push(el('p', { class: 'hint', role: 'status', text: '同梱の設定ファイルを読み込み中です…' }));
+      nodes.push(renderPasswordForm('設定を開く'));
+    } else {
+      nodes.push(el('p', { class: 'step-lead', text: '使う設定を選んでください。' }));
+      nodes.push(el('ul', { class: 'op-guide' }, [
+        el('li', {}, [el('strong', { text: '入力欄に反映' }), '：保存済みの設定を画面の入力欄に読み込みます。']),
+        el('li', {}, [el('strong', { text: '現在の入力で上書き保存' }), '：いま画面に入力している内容で、その設定を置き換えます。']),
+      ]));
+      nodes.push(el('p', { class: 'hint', text: 'どちらも、完了するとこの画面を閉じてメイン画面に戻ります。' }));
+    }
     if (busy && progress) {
       nodes.push(el('div', { class: 'busy', role: 'status' }, [
         el('p', { text: `設定を確認しています（${Math.min(progress.done + 1, progress.total)} / ${progress.total} 件目）… この処理には数秒かかることがあります` }),
@@ -258,36 +282,49 @@ export function createPresetsView(dialog, root, api) {
       nodes.push(el('p', { class: 'busy', role: 'status', text: '処理中です… この処理には数秒かかることがあります' }));
     }
     if (msg.open) nodes.push(el('p', { class: 'error', role: 'alert', text: `⚠ ${msg.open}` }));
-    if (applyNote) nodes.push(el('p', { class: 'notice', role: 'status', text: `✓ ${applyNote}` }));
     unlocked.forEach((u) => nodes.push(renderEntry(u)));
-    if (unlocked.length > 0) {
-      nodes.push(el('button', { type: 'button', class: 'btn btn-secondary', text: 'ロック（パスワードと復号結果を破棄）', onClick: () => lock() }));
+    if (isUnlocked) {
+      nodes.push(el('details', { class: 'sub-details' }, [
+        el('summary', { text: '別のパスワードの設定も開く' }),
+        renderPasswordForm('追加で開く'),
+      ]));
+      nodes.push(el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'ロックする（パスワードと復号結果を破棄）', onClick: () => lock() }));
     }
     return nodes;
+  }
+
+  /** 編集をすぐこの端末に保存する。失敗したら「未保存」として残す */
+  async function commit(u, payload) {
+    u.payload = payload;
+    u.dirty = true;
+    msg.open = '';
+    return saveEntry(u);
   }
 
   function renderEntry(u) {
     const sets = u.payload.sets.map((s, idx) => el('li', { class: 'preset-set' }, [
       el('div', { class: 'preset-head' }, [
-        el('strong', { text: s.name }),
+        el('strong', { class: 'preset-name', text: s.name }),
         el('span', { class: 'sub', text: ` ケース ${s.cases.length} 件` }),
       ]),
       s.note ? el('p', { class: 'hint', text: s.note }) : null,
-      el('div', { class: 'btn-row' }, [
-        el('button', { type: 'button', class: 'btn btn-primary', text: '反映', disabled: busy, onClick: () => applySet(s) }),
-        el('button', { type: 'button', class: 'btn btn-secondary', text: '現在の入力で上書き', disabled: busy, onClick: () => {
-          if (!window.confirm(`「${s.name}」を現在の入力内容で上書きしますか？`)) return;
+      el('div', { class: 'preset-main-actions' }, [
+        el('button', { type: 'button', class: 'btn btn-primary', text: '入力欄に反映', disabled: busy, onClick: () => applySet(s) }),
+        el('button', { type: 'button', class: 'btn btn-secondary', text: '現在の入力で上書き保存', disabled: busy, onClick: async () => {
+          if (!window.confirm(`「${s.name}」を現在の入力内容で上書き保存しますか？（元の内容は残りません）`)) return;
           const ns = currentSet({ name: s.name, note: s.note });
           if (!ns) return;
-          u.payload = replaceSet(u.payload, idx, ns); u.dirty = true; msg.open = ''; render();
+          if (await commit(u, replaceSet(u.payload, idx, ns))) finish(`「${s.name}」を現在の入力内容で上書き保存しました。`);
         } }),
-        el('button', { type: 'button', class: 'btn btn-secondary', text: '名前変更', disabled: busy, onClick: () => {
+      ]),
+      el('div', { class: 'preset-sub-actions' }, [
+        el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: '名前変更', disabled: busy, onClick: () => {
           const n = window.prompt('新しい名前', s.name);
-          if (n && n.trim()) { u.payload = renameSet(u.payload, idx, n.trim()); u.dirty = true; render(); }
+          if (n && n.trim()) commit(u, renameSet(u.payload, idx, n.trim()));
         } }),
-        el('button', { type: 'button', class: 'btn btn-danger', text: '削除', disabled: busy, onClick: () => {
+        el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '削除', disabled: busy, onClick: () => {
           if (!window.confirm(`「${s.name}」を削除しますか？`)) return;
-          u.payload = removeSet(u.payload, idx); u.dirty = true; render();
+          commit(u, removeSet(u.payload, idx));
         } }),
       ]),
     ]));
@@ -296,32 +333,31 @@ export function createPresetsView(dialog, root, api) {
     const newPw2 = nextId('pw');
     const pwMsgId = nextId('pm');
     return el('section', { class: 'preset-entry' }, [
-      el('h3', { text: `設定（${u.source === 'repo' ? '同梱' : 'この端末'}）${u.dirty ? ' ※未保存の変更あり' : ''}` }),
+      el('h3', { text: `保存済みの設定（${u.source === 'repo' ? '同梱' : 'この端末'}）` }),
+      u.dirty ? el('div', { class: 'status status-ng' }, [
+        el('p', { text: '⚠ 保存できていない変更があります。' }),
+        el('button', { type: 'button', class: 'btn btn-primary', text: '保存をやり直す', disabled: busy, onClick: () => saveEntry(u) }),
+      ]) : null,
       sets.length ? el('ul', { class: 'preset-list' }, sets) : el('p', { class: 'hint', text: '設定セットはありません。' }),
-      el('div', { class: 'field' }, [
-        el('label', { for: nameId, text: '現在の入力を新しいセットとして追加（名前）' }),
-        el('input', { id: nameId, type: 'text', autocomplete: 'off', maxlength: '60' }),
-        el('button', { type: 'button', class: 'btn btn-secondary', text: '追加', disabled: busy, onClick: () => {
-          const n = val(nameId).trim();
-          if (!n) { window.alert('名前を入力してください。'); return; }
-          const ns = currentSet({ name: n, note: '' });
-          if (!ns) return;
-          u.payload = addSet(u.payload, ns); u.dirty = true; msg.open = ''; render();
-        } }),
-      ]),
-      el('div', { class: 'btn-row' }, [
-        el('button', { type: 'button', class: 'btn btn-primary', text: '保存（この端末）', disabled: busy || !u.dirty, onClick: () => saveEntry(u) }),
-        u.source === 'local' ? el('button', { type: 'button', class: 'btn btn-danger', text: 'この端末から削除', disabled: busy, onClick: () => {
-          if (!window.confirm('この端末に保存された暗号化データを削除しますか？')) return;
-          local = { ...local, container: removeEntry(local.container, u.id) };
-          const r = saveLocalContainer(local.container);
-          msg.global = r.ok ? '削除しました。' : r.message;
-          unlocked = unlocked.filter((x) => x.id !== u.id);
-          render();
-        } }) : el('p', { class: 'hint', text: '同梱のエントリはブラウザからは削除できません。リポジトリ側で削除してください。' }),
+      el('details', { class: 'sub-details' }, [
+        el('summary', { text: '現在の入力を、別の名前で追加保存する' }),
+        el('div', { class: 'fields' }, [
+          el('div', { class: 'field' }, [
+            el('label', { for: nameId, text: '新しい設定の名前' }),
+            el('input', { id: nameId, type: 'text', autocomplete: 'off', maxlength: '60' }),
+          ]),
+          el('button', { type: 'button', class: 'btn btn-secondary', text: '追加して保存', disabled: busy, onClick: async () => {
+            const n = val(nameId).trim();
+            if (!n) { window.alert('名前を入力してください。'); return; }
+            const ns = currentSet({ name: n, note: '' });
+            if (!ns) return;
+            if (await commit(u, addSet(u.payload, ns))) finish(`「${n}」を新しい設定として保存しました。`);
+          } }),
+          el('p', { class: 'hint', text: '同じパスワードで開ける設定として追加されます。' }),
+        ]),
       ]),
       el('details', { class: 'sub-details' }, [
-        el('summary', { text: 'パスワード変更（再暗号化）' }),
+        el('summary', { text: '管理（パスワード変更・端末からの削除）' }),
         el('div', { class: 'fields' }, [
           pwInput(newPw1, '新しいパスワード', '', 'new-password'),
           pwInput(newPw2, '新しいパスワード（確認）', '', 'new-password'),
@@ -337,6 +373,14 @@ export function createPresetsView(dialog, root, api) {
             saveEntry(u, a);
           } }),
           el('p', { class: 'hint', text: '同梱のエントリの場合、全端末に反映するにはエクスポートして data/presets.enc.json を更新してください。古い暗号文は git 履歴に残り、古いパスワードで復号できます。' }),
+          u.source === 'local' ? el('button', { type: 'button', class: 'btn btn-danger', text: 'この設定一式をこの端末から削除', disabled: busy, onClick: () => {
+            if (!window.confirm('この端末に保存された暗号化データを削除しますか？')) return;
+            local = { ...local, container: removeEntry(local.container, u.id) };
+            const r = saveLocalContainer(local.container);
+            msg.global = r.ok ? '削除しました。' : r.message;
+            unlocked = unlocked.filter((x) => x.id !== u.id);
+            render();
+          } }) : el('p', { class: 'hint', text: '同梱のエントリはブラウザからは削除できません。リポジトリ側で削除してください。' }),
         ]),
       ]),
     ]);
@@ -352,12 +396,14 @@ export function createPresetsView(dialog, root, api) {
       warnNode.textContent = v ? (passwordWarnings(v).length ? `⚠ 弱いパスワードです: ${passwordWarnings(v).join('、')}。4 桁の数字などは総当たりで容易に破られます。` : '') : '';
     });
     const form = el('form', { class: 'pw-form', autocomplete: 'off' }, [
-      el('p', { class: 'hint', text: '現在の入力内容（共通項目と全ケース）を、新しいパスワードで暗号化して保存します。' }),
+      el('p', { class: 'step-lead', text: 'いま画面に入力している内容を、新しい設定として保存します。' }),
+      el('p', { class: 'hint', text: '共通項目と全ケースを、新しいパスワードで暗号化してこの端末に保存します。保存が終わるとこの画面を閉じてメイン画面に戻ります。' }),
+      securityNote(),
       el('div', { class: 'field' }, [el('label', { for: ids.name, text: '設定セットの名前' }), el('input', { id: ids.name, type: 'text', autocomplete: 'off', maxlength: '60', value: createDraft.name })]),
       el('div', { class: 'field' }, [el('label', { for: ids.note, text: 'メモ（任意）' }), el('input', { id: ids.note, type: 'text', autocomplete: 'off', maxlength: '200', value: createDraft.note })]),
       p1, warnNode,
       pwInput(ids.p2, '新しいパスワード（確認）', '', 'new-password'),
-      el('button', { type: 'submit', class: 'btn btn-primary', text: '暗号化してこの端末に保存', disabled: busy }),
+      el('button', { type: 'submit', class: 'btn btn-primary', text: '暗号化して保存', disabled: busy }),
     ]);
     form.addEventListener('submit', (e) => { e.preventDefault(); createNew(val(ids.name), val(ids.note), val(ids.p1), val(ids.p2)); });
     const nodes = [form];
@@ -366,43 +412,50 @@ export function createPresetsView(dialog, root, api) {
     return nodes;
   }
 
+  function securityNote() {
+    return el('div', { class: 'info-box security' }, [
+      el('p', { text: '設定はパスワードで暗号化されます。公開リポジトリの暗号文は誰でも入手でき、オフラインで総当たりを試せます。4 桁の数字など短いパスワードは容易に破られます。8 文字以上の英数字混在（できれば長いパスフレーズ）を推奨します。パスワードを忘れても復元できません。' }),
+    ]);
+  }
+
   function renderExport() {
     const total = repo.container.entries.length + local.container.entries.length;
     const nodes = [
-      el('h3', { text: 'エクスポート（暗号化したまま）' }),
       el('p', { class: 'hint', text: `全体形式は、同梱 ${repo.container.entries.length} 件とこの端末の ${local.container.entries.length} 件を統合した data/presets.enc.json の置き換え用です。リポジトリにコミットすると全端末で使えます。` }),
       el('div', { class: 'btn-row' }, [
-        el('button', { type: 'button', class: 'btn btn-secondary', text: '全体形式をダウンロード', disabled: total === 0, onClick: () => doExport('full', 'download') }),
-        el('button', { type: 'button', class: 'btn btn-secondary', text: '全体形式をコピー', disabled: total === 0, onClick: () => doExport('full', 'copy') }),
-        el('button', { type: 'button', class: 'btn btn-secondary', text: '追加分のみダウンロード', disabled: local.container.entries.length === 0, onClick: () => doExport('additions', 'download') }),
-        el('button', { type: 'button', class: 'btn btn-secondary', text: '追加分のみコピー', disabled: local.container.entries.length === 0, onClick: () => doExport('additions', 'copy') }),
+        el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: '全体形式をダウンロード', disabled: total === 0, onClick: () => doExport('full', 'download') }),
+        el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: '全体形式をコピー', disabled: total === 0, onClick: () => doExport('full', 'copy') }),
+        el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: '追加分のみダウンロード', disabled: local.container.entries.length === 0, onClick: () => doExport('additions', 'download') }),
+        el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: '追加分のみコピー', disabled: local.container.entries.length === 0, onClick: () => doExport('additions', 'copy') }),
       ]),
     ];
     if (msg.exportInfo) nodes.push(el('p', { class: 'notice', role: 'status', text: `✓ ${msg.exportInfo}` }));
     if (msg.exportText) nodes.push(el('textarea', { id: 'export-text', readonly: true, rows: '6', 'aria-label': 'エクスポートした暗号化 JSON', value: msg.exportText }));
-    return nodes;
+    // エクスポート直後は結果が見えるよう開いたままにする
+    return el('details', { class: 'sub-details export-details', open: !!(msg.exportInfo || msg.exportText) }, [
+      el('summary', { text: 'エクスポート（他の端末でも使う・暗号化したまま）' }),
+      ...nodes,
+    ]);
   }
 
   function render() {
-    const tabs = el('div', { class: 'tabs', role: 'tablist', 'aria-label': 'マイ設定' }, [
-      el('button', { type: 'button', role: 'tab', class: 'tab', id: 'ptab-open', 'aria-selected': String(tab === 'open'), text: '開く', onClick: () => { tab = 'open'; render(); } }),
-      el('button', { type: 'button', role: 'tab', class: 'tab', id: 'ptab-create', 'aria-selected': String(tab === 'create'), text: '新規作成', onClick: () => { tab = 'create'; render(); } }),
+    const tabs = el('div', { class: 'seg', role: 'tablist', 'aria-label': 'マイ設定' }, [
+      el('button', { type: 'button', role: 'tab', class: 'seg-btn', id: 'ptab-open', 'aria-selected': String(tab === 'open'), text: '保存済みの設定を使う', onClick: () => { tab = 'open'; render(); } }),
+      el('button', { type: 'button', role: 'tab', class: 'seg-btn', id: 'ptab-create', 'aria-selected': String(tab === 'create'), text: '現在の入力を新規保存', onClick: () => { tab = 'create'; render(); } }),
     ]);
     const nodes = [
       el('div', { class: 'dialog-head' }, [
         el('h2', { id: 'presets-title', text: 'マイ設定' }),
         el('button', { type: 'button', class: 'btn btn-secondary', text: '閉じる', onClick: close }),
       ]),
-      el('div', { class: 'info-box security' }, [
-        el('p', { text: '設定はパスワードで暗号化されます。公開リポジトリの暗号文は誰でも入手でき、オフラインで総当たりを試せます。4 桁の数字など短いパスワードは容易に破られます。8 文字以上の英数字混在（できれば長いパスフレーズ）を推奨します。パスワードを忘れても復元できません。' }),
-      ]),
+      el('p', { class: 'hint', text: '入力内容に名前を付けて保存し、あとで呼び出せます（パスワードで暗号化）。' }),
     ];
     if (!hasCrypto()) nodes.push(el('p', { class: 'error', text: '⚠ この環境では暗号機能が使えません（HTTPS で開いてください）。' }));
     msg.warnings.forEach((w) => nodes.push(el('p', { class: 'notice', text: `ℹ ${w}` })));
-    if (msg.global) nodes.push(el('p', { class: 'notice', role: 'status', text: `ℹ ${msg.global}` }));
     nodes.push(tabs);
+    if (msg.global) nodes.push(el('p', { class: 'notice', role: 'status', text: `ℹ ${msg.global}` }));
     nodes.push(el('div', { class: 'tab-body', role: 'tabpanel' }, tab === 'open' ? renderOpenTab() : renderCreateTab()));
-    nodes.push(el('div', { class: 'tab-body' }, renderExport()));
+    nodes.push(renderExport());
     setChildren(root, nodes);
   }
 
@@ -415,7 +468,6 @@ export function createPresetsView(dialog, root, api) {
     unlocked = [];
     openPasswordKept = '';
     msg.open = '';
-    applyNote = '';
     createDraft.name = ''; createDraft.note = '';
     render();
     if (dialog.open) dialog.close();

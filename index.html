@@ -19,55 +19,69 @@
       <h1>住宅ローン概算シミュレータ</h1>
       <p class="lead"><strong>すべて概算です。</strong>実際の返済額・審査結果は金融機関の返済予定表でご確認ください。入力内容は外部に送信されません。</p>
     </div>
-    <button type="button" id="open-presets" class="btn btn-primary">マイ設定</button>
+    <button type="button" id="open-presets" class="btn btn-secondary">マイ設定<span class="btn-sub">保存・呼び出し</span></button>
   </div>
 </header>
 
 <main class="wrap layout">
-  <div class="col-input">
+  <div class="col-input zone zone-input" role="group" aria-labelledby="zone-input-title">
+    <div class="zone-head">
+      <p class="zone-title" id="zone-input-title"><span class="zone-chip">入力</span>条件を入力する</p>
+      <p class="zone-desc">ここを変更すると、計算結果が自動で更新されます。</p>
+    </div>
+
     <section class="card" aria-labelledby="h-common">
-      <h2 id="h-common">1. 物件・資金（共通）</h2>
+      <h2 id="h-common"><span class="step">1</span>物件・資金（全ケース共通）</h2>
       <div id="common-form" class="fields"></div>
     </section>
 
     <section class="card" aria-labelledby="h-case">
-      <h2 id="h-case">2. 借入条件（ケース）</h2>
+      <h2 id="h-case"><span class="step">2</span>借入条件（ケースごと）</h2>
       <div id="error-summary" class="error-summary" aria-live="polite"></div>
       <div id="case-tabs" class="tabs" role="tablist" aria-label="ケース"></div>
-      <div id="case-actions" class="btn-row"></div>
       <div id="case-form" class="fields" role="tabpanel"></div>
+      <div id="case-actions" class="btn-row case-actions"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-deduction">
+      <h2 id="h-deduction"><span class="step">3</span>住宅ローン控除の条件（任意）</h2>
+      <div id="deduction-form" class="fields"></div>
     </section>
   </div>
 
-  <div class="col-result">
-    <section class="card" aria-labelledby="h-summary">
-      <h2 id="h-summary">3. 結果サマリー</h2>
+  <div class="col-result zone zone-result" role="group" aria-labelledby="zone-result-title">
+    <div class="zone-head">
+      <p class="zone-title" id="zone-result-title"><span class="zone-chip">結果</span>計算結果を見る</p>
+      <p class="zone-desc">入力内容から自動で計算した値です（ここは編集できません）。</p>
+    </div>
+
+    <section class="card card-primary" aria-labelledby="h-summary">
+      <h2 id="h-summary">返済額のまとめ</h2>
       <div id="summary"></div>
     </section>
 
     <section class="card" aria-labelledby="h-funding">
-      <h2 id="h-funding">4. 資金計画チェック（申込書の記入イメージ）</h2>
+      <h2 id="h-funding">資金計画チェック<span class="h-sub">申込書の記入イメージ</span></h2>
       <div id="funding"></div>
     </section>
 
     <section class="card" aria-labelledby="h-compare">
-      <h2 id="h-compare">5. ケース比較</h2>
+      <h2 id="h-compare">ケース比較</h2>
       <div id="compare"></div>
     </section>
 
     <section class="card" aria-labelledby="h-chart">
-      <h2 id="h-chart">6. 残高推移グラフ</h2>
+      <h2 id="h-chart">残高推移グラフ</h2>
       <div id="chart"></div>
     </section>
 
-    <section class="card" aria-labelledby="h-tax">
-      <h2 id="h-tax">7. 住宅ローン控除（概算）</h2>
-      <div id="deduction-form" class="fields"></div>
+    <section class="card card-minor" aria-labelledby="h-tax">
+      <h2 id="h-tax">住宅ローン控除（概算）</h2>
       <div id="tax-result"></div>
     </section>
 
-    <section class="card" aria-labelledby="h-schedule">
-      <h2 id="h-schedule">8. 年次返済予定表</h2>
+    <section class="card card-minor" aria-labelledby="h-schedule">
+      <h2 id="h-schedule">年次返済予定表</h2>
       <div id="schedule"></div>
     </section>
   </div>
@@ -85,6 +99,9 @@
     <li>入力内容は外部に送信されません。マイ設定はパスワードで暗号化して保存されますが、短いパスワードは破られる可能性があります。</li>
   </ol>
 </footer>
+
+<a id="quick-result" class="quick-result" href="#h-summary" hidden></a>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <dialog id="presets-dialog" aria-labelledby="presets-title">
   <div class="dialog-body" id="presets-root"></div>
