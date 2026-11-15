@@ -1,0 +1,7 @@
+# 平文の設定セットを誤ってコミットしないための保険
+*.plain.json
+*.plaintext.json
+*-plain.json
+presets.json
+node_modules/
+.DS_Store

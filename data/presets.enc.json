@@ -1,0 +1,16 @@
+{
+  "format": "housing-loan-simulator/presets",
+  "version": 1,
+  "entries": [
+    {
+      "id": "IRZmJqStKG3ZIufK",
+      "kdf": "PBKDF2",
+      "hash": "SHA-256",
+      "iterations": 600000,
+      "salt": "iGzCSPPJNa5haI/gNI+Zvw==",
+      "cipher": "AES-GCM",
+      "iv": "J3y9ldGsP0dCiDTD",
+      "ciphertext": "0/gRP9PIv3N9P8eTAjN0FiWl1HH4zdPVUXWjis6+LwDBttH2ETiehu51ZL4WhG0J1ZX/Y3JBqxOMdeYLV8mlW5VhVelrJx8A26rEMHto4TqreN+71v02jgNi2YBS0pz1IPAezjrW6nA/+kae6UGsXycQQcwASJH+duM2ZcE8EXLLtfAhhkRfPEmdsMc6YXXBKMkDjW2nrj9qx/UmEhPhPETGvH6miJI9i198ehWzJ0oFyiLNrKsZ/s0TRJTSnBNa/xQ3wPiFCF+smXjQfRCjW8UyI9/8MRyJQg3mbmDAarBvDt3rEkqwEApFgZfbFOA1GASwKismnovJasiX2TRD+fRa50wUur2d4KOR3k5GszbvoESONYNezfUWIZDgJd6L3CYW8wDUmQAnZxRnG5/xPwj+I/y0COXdzlXbJGjqE9Jv3MPPHzaxEQn5bXhrFXBfnfc3X/+j6OsGzaHNhL3xn7vNPcACEqvfcwJ2I+PfSBUyNkD/LqiWHnPJlko9EOo46g25E59ybJhvQc74J0eaKYZ7az/tvoTaWLqnHUqiY+rX0BqeescxAnPAUg9dOfVVIotR0DzQrZlfsKcARd/XEQgH6cW7O5uN/SPnjTOXz7iB6dbqzTZEycqKUms9aShQUJDHj6Q+3o/PWljwgKDFaCPPpEarJ7I+fV7LgraB1TygZDJtzYGDeoIlDf3P6nDWhpBM2E1cI9l2QwJg5HrliUK5qc9KpXoEVLlfUmS1BvEVZ81pBtdGa+Q/ExmYquPaEToOGcCEuhWtnQmWbqAEA78ru+cwFRU5K6tAY9rdf8Xtap2QxtX/bzHxa8a+xAdDrtqoZKpWXp83km4V2JWEkKTL52sl51mYWlim2j0KDBPa79OPw9hGMj4Hz+h/CUxr1JWeu19zUXtw/WHvDXkZ56n/6dCRCoU+gNUSAun85fOLLmwxWZfjUXs8vKtYfVsu21qzVwUUnA6m8Nq9q+OeEhGb/Pkzzrj9P7dmTL8Hz6JaFPPZlnNFDGYMk+ZE1lpmcph+RZpwH78yFjshOaPTkmIEPNmOQRVhQvbwfRL7tJpm7Geu/X9bywxsAZO2BUZnhB6/mJsDMQf/s15gXBhAduwSUHLBJRRIFj22+jpUUegk2cCQ6CLsbUlLTukagQYSbWRKLPmDmFA/mRHtQXa9X1XOIwXapyXpRrR7I3nC2OaNAa2aaf1tyE1sXyLOJ60byAKpHT0SvcaT2GFmmh4H3vC1VtifQ84MFHKiA8XeAESC7FsxeNkmBKnxgjHgDxkKFmnlv9kzcPy9TgR6p4YpENyqu3Viq9i2HyzxtF+kHIfNFkkDrgiXeaEKDT5lxkwHuEWPT/m9CSSWrK6eTaN0a5r6u+C5cEknKJHAa7q5LPcbYP/MAcKIExZrwpmLsat9rEPZ0ePGFuHtw82WeinqTee7qBt+ph3zcDwgF2oe0QBzloHljm1RunIxbRrGdrI4944QGwKo46kjHT434LgVC+mcnPbEJkj5KPG/CV2Yjx+662w38Deu/flkCGhmi4yo0DzOhSns"
+    }
+  ]
+}

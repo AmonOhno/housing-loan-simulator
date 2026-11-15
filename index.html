@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>住宅ローン概算シミュレータ</title>
+<meta name="description" content="住宅ローンの返済額・資金計画・ケース比較・住宅ローン控除を概算するツール。入力内容は外部に送信されません。">
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<noscript><p class="banner banner-error">JavaScript を有効にしてください。このツールは JavaScript で計算します。</p></noscript>
+<div id="fatal-error" class="banner banner-error" role="alert" hidden></div>
+
+<header class="site-header">
+  <div class="wrap header-row">
+    <div>
+      <h1>住宅ローン概算シミュレータ</h1>
+      <p class="lead"><strong>すべて概算です。</strong>実際の返済額・審査結果は金融機関の返済予定表でご確認ください。入力内容は外部に送信されません。</p>
+    </div>
+    <button type="button" id="open-presets" class="btn btn-primary">マイ設定</button>
+  </div>
+</header>
+
+<main class="wrap layout">
+  <div class="col-input">
+    <section class="card" aria-labelledby="h-common">
+      <h2 id="h-common">1. 物件・資金（共通）</h2>
+      <div id="common-form" class="fields"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-case">
+      <h2 id="h-case">2. 借入条件（ケース）</h2>
+      <div id="error-summary" class="error-summary" aria-live="polite"></div>
+      <div id="case-tabs" class="tabs" role="tablist" aria-label="ケース"></div>
+      <div id="case-actions" class="btn-row"></div>
+      <div id="case-form" class="fields" role="tabpanel"></div>
+    </section>
+  </div>
+
+  <div class="col-result">
+    <section class="card" aria-labelledby="h-summary">
+      <h2 id="h-summary">3. 結果サマリー</h2>
+      <div id="summary"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-funding">
+      <h2 id="h-funding">4. 資金計画チェック（申込書の記入イメージ）</h2>
+      <div id="funding"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-compare">
+      <h2 id="h-compare">5. ケース比較</h2>
+      <div id="compare"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-chart">
+      <h2 id="h-chart">6. 残高推移グラフ</h2>
+      <div id="chart"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-tax">
+      <h2 id="h-tax">7. 住宅ローン控除（概算）</h2>
+      <div id="deduction-form" class="fields"></div>
+      <div id="tax-result"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-schedule">
+      <h2 id="h-schedule">8. 年次返済予定表</h2>
+      <div id="schedule"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="wrap site-footer" id="notices">
+  <h2>注意書き・前提</h2>
+  <ol>
+    <li>本ツールの結果はすべて<strong>概算</strong>であり、金融機関の正式な試算・審査結果・契約内容とは異なります。実際の返済額は金融機関の返済予定表で確認してください。</li>
+    <li>金利は全期間一定として計算しています。変動金利・固定期間選択型の将来の金利変動は反映しません。</li>
+    <li>利息は月割り・半年割りで計算し、日割り計算、初回・最終回の調整、金融機関ごとの端数処理は再現していません。数円〜数十円ずれることがあります。</li>
+    <li>保証料の初期値は一般的な目安であり、金融機関・保証会社・審査結果により異なります。金融機関の提示額に置き換えてください。</li>
+    <li>返済負担率は入力した年収と適用金利による参考値で、審査上の基準とは異なります。</li>
+    <li>住宅ローン控除は制度の概要に基づく簡易計算で、適用可否・控除額を保証しません。要件（所得・床面積・省エネ性能の証明書類・入居時期など）と最新の制度は国土交通省・国税庁・税務署で確認してください。</li>
+    <li>入力内容は外部に送信されません。マイ設定はパスワードで暗号化して保存されますが、短いパスワードは破られる可能性があります。</li>
+  </ol>
+</footer>
+
+<dialog id="presets-dialog" aria-labelledby="presets-title">
+  <div class="dialog-body" id="presets-root"></div>
+</dialog>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
