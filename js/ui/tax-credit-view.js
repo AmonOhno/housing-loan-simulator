@@ -22,7 +22,7 @@ export function renderTaxCredit(root, st) {
   const r = st.results[i];
   const out = [];
   if (!st.raw.deduction.enabled) {
-    out.push(el('p', { class: 'hint', text: '「住宅ローン控除を試算する」がオフです。' }));
+    out.push(el('p', { class: 'hint', text: '入力欄 3 の「住宅ローン控除を試算する」がオフです。' }));
     out.push(sourcesBlock());
     setChildren(root, out);
     return;

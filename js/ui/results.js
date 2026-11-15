@@ -23,32 +23,40 @@ export function renderSummary(root, st) {
   if (st.caseHasError[i]) {
     out.push(el('p', { class: 'notice stale', text: '⚠ 入力エラーのため、前回の有効な入力での結果を表示しています。' }));
   }
-  const dl = [];
   const isEP = r.method === 'equalPrincipal';
-  dl.push(item('毎月返済額', isEP
-    ? [yen(s.initialMonthly), el('span', { class: 'sub', text: `（初回。最終回 ${yen(s.lastMonthly)}）` })]
-    : [yen(s.initialMonthly)], 'kv-main'));
-  if (s.initialBonus > 0) {
-    dl.push(item('ボーナス月の加算額（年 2 回）', isEP
-      ? [yen(s.initialBonus), el('span', { class: 'sub', text: `（初回。最終回 ${yen(s.lastBonus)}）` })]
-      : [yen(s.initialBonus)]));
-    dl.push(item('ボーナス月の返済額', [yen(s.initialMonthly + s.initialBonus)]));
+  // 最重要: 毎月返済額
+  out.push(el('div', { class: 'hero' }, [
+    el('p', { class: 'hero-label', text: '毎月返済額' }),
+    el('p', { class: 'hero-value', text: yen(s.initialMonthly) }),
+    isEP ? el('p', { class: 'hero-sub', text: `初回の金額です（最終回 ${yen(s.lastMonthly)}）` }) : null,
+    s.initialBonus > 0 ? el('p', { class: 'hero-sub', text: `ボーナス月は ${yen(s.initialMonthly + s.initialBonus)}（加算 ${yen(s.initialBonus)}・年 2 回${isEP ? `、初回。最終回の加算 ${yen(s.lastBonus)}` : ''}）` }) : null,
+  ]));
+  // 次に重要: 総額・負担率・完済時期
+  const tile = (label, value, sub) => el('div', { class: 'tile' }, [
+    el('p', { class: 'tile-label', text: label }),
+    el('p', { class: 'tile-value' }, value),
+    sub ? el('p', { class: 'tile-sub' }, sub) : null,
+  ]);
+  const tiles = [
+    tile('総返済額', [man(s.totalPayment)], [yen(s.totalPayment)]),
+    tile('うち利息', [man(s.totalInterest)], [yen(s.totalInterest)]),
+  ];
+  if (s.burdenRatio === null) {
+    tiles.push(tile('返済負担率', ['—'], ['年収が未入力のため表示しません']));
+  } else {
+    const [label, icon] = BURDEN_LABEL[s.burdenLevel];
+    tiles.push(tile('返済負担率', [`${Number(s.burdenRatio).toFixed(1)}%`], [el('span', { class: `badge badge-${s.burdenLevel}`, text: `${icon} ${label}` })]));
   }
+  tiles.push(tile('完済時期', [ymLabel(s.lastYm)], s.monthsShortened > 0 ? [`繰上返済で ${monthsLabel(s.monthsShortened)} 短縮`] : null));
+  out.push(el('div', { class: 'tiles' }, tiles));
+  // 詳細
+  const dl = [];
   dl.push(item('年間返済額（初年度 12 か月）', [yenWithMan(s.firstYearPayment)]));
-  dl.push(item('総返済額', [yenWithMan(s.totalPayment)]));
-  dl.push(item('総利息', [yenWithMan(s.totalInterest)], 'kv-main'));
+  dl.push(item('計算に使った金利', [percent(r.effectiveRateMilli / 1000)]));
   if (s.lumpYen > 0) {
     dl.push(item('一括保証料', [yenWithMan(s.lumpYen)]));
     dl.push(item('総支払額（総返済額＋一括保証料）', [yenWithMan(s.totalPaid)]));
   }
-  dl.push(item('計算に使った金利', [percent(r.effectiveRateMilli / 1000)]));
-  if (s.burdenRatio === null) {
-    dl.push(item('返済負担率', ['—', el('span', { class: 'sub', text: '（年収が未入力または 0 のため表示しません）' })]));
-  } else {
-    const [label, icon] = BURDEN_LABEL[s.burdenLevel];
-    dl.push(item('返済負担率', [`${Number(s.burdenRatio).toFixed(1)}%`, el('span', { class: `badge badge-${s.burdenLevel}`, text: `${icon} ${label}` })]));
-  }
-  dl.push(item('完済時期', [ymLabel(s.lastYm), s.monthsShortened > 0 ? el('span', { class: 'sub', text: `（繰上返済で ${monthsLabel(s.monthsShortened)} 短縮）` }) : null]));
   if (r.taxCredit.enabled) {
     dl.push(item('住宅ローン控除の合計（概算）', [yenWithMan(r.taxCredit.total)]));
     dl.push(item('実質負担（総支払額 − 控除合計）', [yenWithMan(s.realBurden)]));
@@ -82,7 +90,6 @@ export function renderSummary(root, st) {
   const notice = st.notices.cases[i];
   if (notice) Object.values(notice).forEach((n) => msgs.push(n));
   if (msgs.length) out.push(el('ul', { class: 'notice-list' }, msgs.map((t) => el('li', { text: `ℹ ${t}` }))));
-  void man;
   setChildren(root, out);
 }
 export { METHOD_LABEL };

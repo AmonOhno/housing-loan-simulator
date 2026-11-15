@@ -9,6 +9,8 @@ import { renderSchedule } from './ui/schedule-table.js';
 import { createPresetsView } from './ui/presets-view.js';
 import { renderBalanceChart, observeWidth } from './chart.js';
 import { caseName } from './ui/state.js';
+import { el } from './ui/dom.js';
+import { yen } from './ui/format.js';
 import { rawStateFromSet } from './model/preset-schema.js';
 import { DEFAULT_COMMON, DEFAULT_DEDUCTION, DEFAULT_CASES } from './data/defaults.js';
 
@@ -76,6 +78,37 @@ function renderAll(st) {
   renderChart(st);
   renderTaxCredit($('tax-result'), st);
   renderSchedule($('schedule'), st);
+  renderQuick(st);
+}
+
+// スマホ用: 入力中でも毎月返済額が見える固定バー（結果サマリーが画面内にあるときは隠す）
+const quick = $('quick-result');
+let summaryVisible = false;
+function renderQuick(st) {
+  const r = st.results[st.activeCaseIndex];
+  if (!r) { quick.hidden = true; return; }
+  quick.replaceChildren(
+    el('span', { class: 'quick-label', text: '毎月返済額' }),
+    el('strong', { class: 'quick-value', text: yen(r.summary.initialMonthly) }),
+    el('span', { class: 'quick-go', text: '結果を見る ↓' }),
+  );
+  quick.hidden = summaryVisible;
+}
+if ('IntersectionObserver' in window) {
+  new IntersectionObserver((entries) => {
+    summaryVisible = entries[0].isIntersecting;
+    if (lastState) renderQuick(lastState);
+  }).observe($('summary'));
+}
+
+// メイン画面の一時通知（マイ設定の反映・保存完了など）
+const toast = $('toast');
+let toastTimer = null;
+function notify(text) {
+  toast.textContent = `✓ ${text}`;
+  toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.hidden = true; }, 6000);
 }
 
 store.onResult(renderAll);
@@ -95,6 +128,7 @@ window.addEventListener('afterprint', () => {
 const presets = createPresetsView($('presets-dialog'), $('presets-root'), {
   getState: () => store.state,
   apply: (raw, base) => store.replaceRaw(raw, base),
+  notify,
 });
 $('open-presets').addEventListener('click', () => presets.open());
 

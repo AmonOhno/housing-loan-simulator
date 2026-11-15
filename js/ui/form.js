@@ -26,8 +26,18 @@ export function buildForms(store, roots) {
   let conditionals = [];
   let tabButtons = [];
   let caseActionButtons = {};
+  let advancedOpen = false; // 詳細条件の開閉（再生成で失わない）
+  let advSummary = null;
+
+  function advText(rc) {
+    const g = (GUARANTEES.find(([v]) => v === rc.guaranteeType) || ['', ''])[1].replace(/（.*）/, '');
+    const bonus = Number(rc.bonusPrincipal) > 0 ? `${rc.bonusPrincipal} 万円` : 'なし';
+    return `ボーナス返済: ${bonus} ／ 保証料: ${g} ／ 繰上返済: ${rc.prepayments.length} 件`;
+  }
 
   function changed() {
+    const cur = state.raw.cases[state.activeCaseIndex];
+    if (advSummary && cur) advSummary.textContent = advText(cur);
     applyVisibility();
     store.invalidate();
   }
@@ -169,9 +179,9 @@ export function buildForms(store, roots) {
     const n = state.raw.cases.length;
     const mk = (text, cls, fn) => el('button', { type: 'button', class: `btn ${cls}`, text, onClick: fn });
     caseActionButtons = {
-      add: mk('ケースを追加', 'btn-secondary', () => store.addCase(null)),
-      dup: mk('このケースを複製', 'btn-secondary', () => store.addCase(state.activeCaseIndex)),
-      del: mk('このケースを削除', 'btn-danger', () => store.removeCase(state.activeCaseIndex)),
+      add: mk('ケースを追加', 'btn-secondary btn-sm', () => store.addCase(null)),
+      dup: mk('このケースを複製', 'btn-secondary btn-sm', () => store.addCase(state.activeCaseIndex)),
+      del: mk('このケースを削除', 'btn-danger btn-sm', () => store.removeCase(state.activeCaseIndex)),
     };
     caseActionButtons.add.disabled = n >= MAX_CASES;
     caseActionButtons.dup.disabled = n >= MAX_CASES;
@@ -189,6 +199,11 @@ export function buildForms(store, roots) {
         set: (v) => { rc.label = v; if (tabButtons[i]) tabButtons[i].textContent = caseName(rc, i); },
       }),
       textField({ key: 'case.loan', label: '借入額', unit: '万円', ...f('loan') }),
+      el('div', { class: 'field-pair' }, [
+        textField({ key: 'case.rate', label: '適用金利（年率）', unit: '%', ...f('rate') }),
+        textField({ key: 'case.years', label: '借入期間', unit: '年', inputmode: 'numeric', ...f('years') }),
+      ]),
+      selectField({ key: 'case.method', label: '返済方式', options: METHODS, ...f('method') }),
       selectField({
         key: 'case.ownFundsMode', label: '自己資金の決め方', options: [['auto', '自動（必要資金 − 借入額）'], ['manual', '手入力']], ...f('ownFundsMode'),
         onChange: () => {
@@ -201,9 +216,8 @@ export function buildForms(store, roots) {
         },
       }),
       textField({ key: 'case.ownFunds', label: '自己資金（手付金を含む総額）', unit: '万円', ...f('ownFunds') }),
-      textField({ key: 'case.rate', label: '適用金利（年率）', unit: '%', hint: '全期間一定として計算します。', ...f('rate') }),
-      textField({ key: 'case.years', label: '借入期間', unit: '年', inputmode: 'numeric', ...f('years') }),
-      selectField({ key: 'case.method', label: '返済方式', options: METHODS, ...f('method') }),
+    ];
+    const advanced = [
       textField({ key: 'case.bonusPrincipal', label: 'ボーナス返済分の借入額', unit: '万円', hint: '借入額の 50% 以内。年 2 回（6 か月ごと）の加算として計算します。', ...f('bonusPrincipal') }),
       selectField({ key: 'case.guaranteeType', label: '保証料方式', options: GUARANTEES, ...f('guaranteeType') }),
       when((c) => c.guaranteeType === 'inRate', textField({
@@ -249,7 +263,14 @@ export function buildForms(store, roots) {
         disabled: rc.prepayments.length >= MAX_PREPAYMENTS, onClick: () => store.addPrepay(i),
       }),
     ]);
-    children.push(prepayBlock);
+    advanced.push(prepayBlock);
+    advSummary = el('span', { class: 'adv-status', text: advText(rc) });
+    const adv = el('details', { class: 'sub-details adv-details', open: advancedOpen }, [
+      el('summary', {}, [el('span', { class: 'adv-title', text: '詳細条件（任意）' }), advSummary]),
+      el('div', { class: 'fields' }, advanced),
+    ]);
+    adv.addEventListener('toggle', () => { advancedOpen = adv.open; });
+    children.push(adv);
     roots.caseForm.setAttribute('aria-labelledby', `tab-${i}`);
     setChildren(roots.caseForm, children);
   }
@@ -296,7 +317,11 @@ export function buildForms(store, roots) {
       const [msg, note] = lookup(key);
       ref.errEl.textContent = msg ? `⚠ ${msg}` : '';
       ref.noteEl.textContent = note ? `ℹ ${note}` : '';
-      if (msg) { ref.input.setAttribute('aria-invalid', 'true'); count += 1; } else ref.input.removeAttribute('aria-invalid');
+      if (msg) {
+        ref.input.setAttribute('aria-invalid', 'true'); count += 1;
+        const d = ref.input.closest('details'); // 折りたたみ内のエラーは開いて見せる
+        if (d && !d.open) d.open = true;
+      } else ref.input.removeAttribute('aria-invalid');
     });
     // 画面に出ていない入力欄のエラー（他ケース）も数える
     const other = st.errors.cases.reduce((n, e, idx) => (idx === i ? n : n + Object.keys(e || {}).length), 0);
